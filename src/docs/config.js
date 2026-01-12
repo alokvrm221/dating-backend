@@ -7,7 +7,7 @@
 
 /**
  * @swagger
- * /api/v1/config:
+ * /config:
  *   get:
  *     summary: Get all configuration options
  *     description: Returns all static configuration data including hobbies, dating intentions, religions, etc.
@@ -58,7 +58,7 @@
 
 /**
  * @swagger
- * /api/v1/config/keys:
+ * /config/keys:
  *   get:
  *     summary: Get all available configuration keys
  *     description: Returns a list of all available configuration keys that can be queried
@@ -86,7 +86,7 @@
 
 /**
  * @swagger
- * /api/v1/config/onboarding:
+ * /config/onboarding:
  *   get:
  *     summary: Get onboarding options
  *     description: Returns essential options needed during user registration/onboarding
@@ -118,7 +118,7 @@
 
 /**
  * @swagger
- * /api/v1/config/profile:
+ * /config/profile:
  *   get:
  *     summary: Get profile completion options
  *     description: Returns options for completing user profile (religion, education, etc.)
@@ -154,7 +154,7 @@
 
 /**
  * @swagger
- * /api/v1/config/lifestyle:
+ * /config/lifestyle:
  *   get:
  *     summary: Get lifestyle options
  *     description: Returns lifestyle-related options (drinking, smoking, workout habits, etc.)
@@ -188,7 +188,7 @@
 
 /**
  * @swagger
- * /api/v1/config/relationship:
+ * /config/relationship:
  *   get:
  *     summary: Get relationship options
  *     description: Returns relationship-related options (dating intentions, relationship types, etc.)
@@ -218,7 +218,7 @@
 
 /**
  * @swagger
- * /api/v1/config/hobbies/categories:
+ * /config/hobbies/categories:
  *   get:
  *     summary: Get hobbies grouped by category
  *     description: Returns all hobbies organized by their categories
@@ -248,7 +248,7 @@
 
 /**
  * @swagger
- * /api/v1/config/hobbies/search:
+ * /config/hobbies/search:
  *   get:
  *     summary: Search hobbies
  *     description: Search hobbies by name or category
@@ -284,7 +284,7 @@
 
 /**
  * @swagger
- * /api/v1/config/batch:
+ * /config/batch:
  *   post:
  *     summary: Get multiple configurations by keys
  *     description: Fetch multiple configuration options in a single request
@@ -312,7 +312,7 @@
 
 /**
  * @swagger
- * /api/v1/config/{key}:
+ * /config/{key}:
  *   get:
  *     summary: Get specific configuration by key
  *     description: Returns a specific configuration option by its key
