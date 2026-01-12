@@ -1,6 +1,6 @@
 const ConfigService = require('../services/ConfigService');
 const asyncHandler = require('../utils/asyncHandler');
-const { successResponse } = require('../utils/apiResponse');
+const ApiResponse = require('../utils/apiResponse');
 
 /**
  * @desc    Get all configuration options
@@ -10,10 +10,12 @@ const { successResponse } = require('../utils/apiResponse');
 const getAllConfig = asyncHandler(async (req, res) => {
   const config = ConfigService.getAllOptions();
 
-  return successResponse(res, {
-    message: 'Configuration options retrieved successfully',
-    data: config,
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    'Configuration options retrieved successfully',
+    config
+  );
 });
 
 /**
@@ -26,17 +28,20 @@ const getConfigByKey = asyncHandler(async (req, res) => {
   const config = ConfigService.getOptionByKey(key);
 
   if (!config) {
-    return successResponse(res, {
-      statusCode: 404,
-      message: `Configuration key '${key}' not found`,
-      data: null,
-    });
+    return ApiResponse.success(
+      res,
+      404,
+      `Configuration key '${key}' not found`,
+      null
+    );
   }
 
-  return successResponse(res, {
-    message: `Configuration for '${key}' retrieved successfully`,
-    data: { [key]: config },
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    `Configuration for '${key}' retrieved successfully`,
+    { [key]: config }
+  );
 });
 
 /**
@@ -48,19 +53,21 @@ const getConfigBatch = asyncHandler(async (req, res) => {
   const { keys } = req.body;
 
   if (!keys || !Array.isArray(keys) || keys.length === 0) {
-    return successResponse(res, {
-      statusCode: 400,
-      message: 'Please provide an array of configuration keys',
-      data: null,
-    });
+    return ApiResponse.error(
+      res,
+      400,
+      'Please provide an array of configuration keys'
+    );
   }
 
   const config = ConfigService.getOptionsByKeys(keys);
 
-  return successResponse(res, {
-    message: 'Configuration options retrieved successfully',
-    data: config,
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    'Configuration options retrieved successfully',
+    config
+  );
 });
 
 /**
@@ -71,10 +78,12 @@ const getConfigBatch = asyncHandler(async (req, res) => {
 const getAvailableKeys = asyncHandler(async (req, res) => {
   const keys = ConfigService.getAvailableKeys();
 
-  return successResponse(res, {
-    message: 'Available configuration keys retrieved successfully',
-    data: { keys },
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    'Available configuration keys retrieved successfully',
+    { keys }
+  );
 });
 
 /**
@@ -85,10 +94,12 @@ const getAvailableKeys = asyncHandler(async (req, res) => {
 const getHobbiesByCategory = asyncHandler(async (req, res) => {
   const hobbies = ConfigService.getHobbiesByCategory();
 
-  return successResponse(res, {
-    message: 'Hobbies by category retrieved successfully',
-    data: { hobbies },
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    'Hobbies by category retrieved successfully',
+    { hobbies }
+  );
 });
 
 /**
@@ -100,19 +111,21 @@ const searchHobbies = asyncHandler(async (req, res) => {
   const { q } = req.query;
 
   if (!q || q.trim().length === 0) {
-    return successResponse(res, {
-      statusCode: 400,
-      message: 'Please provide a search query',
-      data: null,
-    });
+    return ApiResponse.error(
+      res,
+      400,
+      'Please provide a search query'
+    );
   }
 
   const hobbies = ConfigService.searchHobbies(q);
 
-  return successResponse(res, {
-    message: 'Hobbies search results retrieved successfully',
-    data: { hobbies, count: hobbies.length },
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    'Hobbies search results retrieved successfully',
+    { hobbies, count: hobbies.length }
+  );
 });
 
 /**
@@ -123,10 +136,12 @@ const searchHobbies = asyncHandler(async (req, res) => {
 const getOnboardingOptions = asyncHandler(async (req, res) => {
   const options = ConfigService.getOnboardingOptions();
 
-  return successResponse(res, {
-    message: 'Onboarding options retrieved successfully',
-    data: options,
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    'Onboarding options retrieved successfully',
+    options
+  );
 });
 
 /**
@@ -137,10 +152,12 @@ const getOnboardingOptions = asyncHandler(async (req, res) => {
 const getProfileOptions = asyncHandler(async (req, res) => {
   const options = ConfigService.getProfileOptions();
 
-  return successResponse(res, {
-    message: 'Profile options retrieved successfully',
-    data: options,
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    'Profile options retrieved successfully',
+    options
+  );
 });
 
 /**
@@ -151,10 +168,12 @@ const getProfileOptions = asyncHandler(async (req, res) => {
 const getLifestyleOptions = asyncHandler(async (req, res) => {
   const options = ConfigService.getLifestyleOptions();
 
-  return successResponse(res, {
-    message: 'Lifestyle options retrieved successfully',
-    data: options,
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    'Lifestyle options retrieved successfully',
+    options
+  );
 });
 
 /**
@@ -165,10 +184,12 @@ const getLifestyleOptions = asyncHandler(async (req, res) => {
 const getRelationshipOptions = asyncHandler(async (req, res) => {
   const options = ConfigService.getRelationshipOptions();
 
-  return successResponse(res, {
-    message: 'Relationship options retrieved successfully',
-    data: options,
-  });
+  return ApiResponse.success(
+    res,
+    200,
+    'Relationship options retrieved successfully',
+    options
+  );
 });
 
 module.exports = {
