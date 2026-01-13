@@ -7,6 +7,7 @@ const Swipe = require('./Swipe');
 const Match = require('./Match');
 const Message = require('./Message');
 const Report = require('./Report');
+const OTP = require('./OTP');
 
 module.exports = {
   User,
@@ -14,5 +15,6 @@ module.exports = {
   Match,
   Message,
   Report,
+  OTP,
 };
 

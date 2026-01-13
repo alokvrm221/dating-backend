@@ -1,8 +1,206 @@
 /**
  * @swagger
+ * /auth/check:
+ *   post:
+ *     summary: Check if user exists (Unified Auth - Step 1)
+ *     description: Check if a user exists by email or phone number. Returns whether user needs to login or register.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - identifier
+ *             properties:
+ *               identifier:
+ *                 type: string
+ *                 description: Email address or phone number
+ *                 example: john@example.com
+ *     responses:
+ *       200:
+ *         description: User status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: User found. Please enter your password to continue.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     exists:
+ *                       type: boolean
+ *                       example: true
+ *                     action:
+ *                       type: string
+ *                       enum: [login, register]
+ *                       example: login
+ *                     identifier:
+ *                       type: string
+ *                       example: john@example.com
+ *                     identifierType:
+ *                       type: string
+ *                       enum: [email, phone]
+ *                       example: email
+ *                     user:
+ *                       type: object
+ *                       description: Basic user info (only if exists is true)
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         firstName:
+ *                           type: string
+ *                         lastName:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         profilePhoto:
+ *                           type: string
+ *       400:
+ *         description: Validation error
+ *
+ * /auth/authenticate:
+ *   post:
+ *     summary: Unified authentication (Login or Register)
+ *     description: Single endpoint that handles both login and registration based on user existence. If user exists, performs login. If not, performs registration.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - identifier
+ *               - password
+ *             properties:
+ *               identifier:
+ *                 type: string
+ *                 description: Email address or phone number
+ *                 example: john@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *                 example: Password123
+ *               firstName:
+ *                 type: string
+ *                 description: Required for new registration
+ *                 example: John
+ *               lastName:
+ *                 type: string
+ *                 description: Required for new registration
+ *                 example: Doe
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *                 description: Required for new registration
+ *                 example: "1995-01-01"
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female, non-binary, other]
+ *                 description: Required for new registration
+ *                 example: male
+ *               interestedIn:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   enum: [male, female, non-binary, other, everyone]
+ *                 description: Required for new registration
+ *                 example: ["female"]
+ *               agreedToTerms:
+ *                 type: boolean
+ *                 description: Required for new registration
+ *                 example: true
+ *               agreedToPrivacyPolicy:
+ *                 type: boolean
+ *                 description: Required for new registration
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Login successful! Welcome back!
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     action:
+ *                       type: string
+ *                       example: login
+ *                     isNewUser:
+ *                       type: boolean
+ *                       example: false
+ *                     user:
+ *                       type: object
+ *                     tokens:
+ *                       type: object
+ *                       properties:
+ *                         accessToken:
+ *                           type: string
+ *                         refreshToken:
+ *                           type: string
+ *                     redirectTo:
+ *                       type: string
+ *                       example: /discover
+ *       201:
+ *         description: Registration successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Registration successful! Welcome aboard!
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     action:
+ *                       type: string
+ *                       example: register
+ *                     isNewUser:
+ *                       type: boolean
+ *                       example: true
+ *                     user:
+ *                       type: object
+ *                     tokens:
+ *                       type: object
+ *                       properties:
+ *                         accessToken:
+ *                           type: string
+ *                         refreshToken:
+ *                           type: string
+ *                     redirectTo:
+ *                       type: string
+ *                       example: /onboarding
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Invalid credentials (for login)
+ *
  * /auth/register:
  *   post:
- *     summary: Register a new user
+ *     summary: Register a new user (Traditional - Deprecated)
+ *     description: Use /auth/authenticate for unified authentication flow
  *     tags: [Authentication]
  *     requestBody:
  *       required: true

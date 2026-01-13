@@ -1,4 +1,4 @@
-const { User } = require('../models');
+const { User, OTP } = require('../models');
 const JWTService = require('../utils/jwt');
 const CacheService = require('../utils/cache');
 const EmailService = require('../utils/email');
@@ -11,96 +11,152 @@ const {
 const crypto = require('crypto');
 
 /**
- * Authentication Service
- * Handles all authentication-related business logic
+ * Authentication Service - OTP Based
+ * Handles all authentication-related business logic using OTP
  */
 class AuthService {
   /**
-   * Register a new user
+   * Send OTP to phone number
+   * @param {String} phoneNumber - User's phone number
+   * @param {String} purpose - Purpose: 'login' or 'register'
    */
-  async register(userData) {
-    const {
-      firstName,
-      lastName,
-      email,
-      password,
-      phoneNumber,
-      dateOfBirth,
-      gender,
-      interestedIn,
-      agreedToTerms,
-      agreedToPrivacyPolicy,
-    } = userData;
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      throw new ConflictError('Email already registered');
+  async sendOTP(phoneNumber, purpose = 'login') {
+    if (!phoneNumber) {
+      throw new ValidationError('Phone number is required');
     }
 
-    // Validate age (must be 18+)
-    const age = new Date().getFullYear() - new Date(dateOfBirth).getFullYear();
-    if (age < 18) {
-      throw new ValidationError('You must be at least 18 years old to register');
+    // Normalize phone number
+    const normalizedPhone = phoneNumber.trim().replace(/[\s\-\(\)]/g, '');
+
+    // Check if user exists
+    const user = await User.findOne({ phoneNumber: normalizedPhone });
+
+    if (purpose === 'login' && !user) {
+      throw new NotFoundError('User not found. Please register first.');
     }
 
-    // Create user
-    const user = await User.create({
-      firstName,
-      lastName,
-      email: email.toLowerCase(),
-      password,
-      phoneNumber,
-      dateOfBirth,
-      gender,
-      interestedIn,
-      agreedToTerms,
-      agreedToPrivacyPolicy,
-      termsAgreedAt: agreedToTerms ? Date.now() : null,
-    });
+    if (purpose === 'register' && user) {
+      throw new ConflictError('Phone number already registered. Please login.');
+    }
 
-    // Generate tokens
-    const tokens = JWTService.generateTokenPair({ id: user._id });
+    // Generate and save OTP
+    const otpDoc = await OTP.createOTP(normalizedPhone, purpose);
 
-    // Save refresh token
-    user.refreshToken = tokens.refreshToken;
-    await user.save({ validateBeforeSave: false });
+    // TODO: Send OTP via SMS service (Twilio, AWS SNS, etc.)
+    // For now, we'll return it in development mode
+    console.log(`📱 OTP for ${normalizedPhone}: ${otpDoc.otp}`);
 
-    // Send welcome email (async, don't wait)
-    EmailService.sendWelcomeEmail(user).catch(() => {});
+    // In production, don't return the OTP
+    const response = {
+      phoneNumber: normalizedPhone,
+      purpose,
+      expiresIn: 300, // 5 minutes in seconds
+      message: 'OTP sent successfully',
+    };
 
-    // Remove sensitive data
-    user.password = undefined;
-    user.refreshToken = undefined;
+    // Only include OTP in development
+    if (process.env.NODE_ENV === 'development') {
+      response.otp = otpDoc.otp; // Remove this in production!
+    }
 
-    return { user, tokens };
+    return response;
   }
 
   /**
-   * Login user
+   * Verify OTP and login/register user
+   * @param {Object} data - { phoneNumber, otp, ...registrationData }
    */
-  async login(email, password) {
-    // Validate input
-    if (!email || !password) {
-      throw new ValidationError('Please provide email and password');
+  async verifyOTP(data) {
+    const { phoneNumber, otp, ...registrationData } = data;
+
+    if (!phoneNumber || !otp) {
+      throw new ValidationError('Phone number and OTP are required');
     }
 
-    // Find user with password
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    // Normalize phone number
+    const normalizedPhone = phoneNumber.trim().replace(/[\s\-\(\)]/g, '');
+
+    // Find OTP
+    const otpDoc = await OTP.findOne({
+      phoneNumber: normalizedPhone,
+      verified: false,
+    }).sort({ createdAt: -1 });
+
+    if (!otpDoc) {
+      throw new ValidationError('No OTP found. Please request a new one.');
+    }
+
+    // Verify OTP
+    const verificationResult = otpDoc.verifyOTP(otp);
+    await otpDoc.save();
+
+    if (!verificationResult.success) {
+      throw new ValidationError(verificationResult.message);
+    }
+
+    // Check if user exists
+    let user = await User.findOne({ phoneNumber: normalizedPhone });
+    let isNewUser = false;
 
     if (!user) {
-      throw new AuthenticationError('Invalid credentials');
-    }
+      // Register new user
+      const {
+        firstName,
+        lastName,
+        email,
+        dateOfBirth,
+        gender,
+        interestedIn,
+        agreedToTerms,
+        agreedToPrivacyPolicy,
+      } = registrationData;
 
-    // Check if account is active
-    if (!user.isActive) {
-      throw new AuthenticationError('Your account has been deactivated');
-    }
+      // Validate required registration fields
+      if (!firstName || !lastName || !dateOfBirth || !gender || !interestedIn) {
+        throw new ValidationError(
+          'Please provide all required registration information'
+        );
+      }
 
-    // Verify password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      throw new AuthenticationError('Invalid credentials');
+      if (!agreedToTerms || !agreedToPrivacyPolicy) {
+        throw new ValidationError('You must agree to terms and privacy policy');
+      }
+
+      // Validate age (must be 18+)
+      const age = new Date().getFullYear() - new Date(dateOfBirth).getFullYear();
+      if (age < 18) {
+        throw new ValidationError('You must be at least 18 years old to register');
+      }
+
+      // Create user
+      user = await User.create({
+        firstName,
+        lastName,
+        phoneNumber: normalizedPhone,
+        email: email ? email.toLowerCase() : undefined,
+        dateOfBirth,
+        gender,
+        interestedIn,
+        agreedToTerms,
+        agreedToPrivacyPolicy,
+        termsAgreedAt: Date.now(),
+        phoneVerified: true,
+        phoneVerifiedAt: Date.now(),
+      });
+
+      isNewUser = true;
+
+      // Send welcome email (async, don't wait) - only if email provided
+      if (email) {
+        EmailService.sendWelcomeEmail(user).catch(() => {});
+      }
+    } else {
+      // Update phone verification status
+      if (!user.phoneVerified) {
+        user.phoneVerified = true;
+        user.phoneVerifiedAt = Date.now();
+        await user.save({ validateBeforeSave: false });
+      }
     }
 
     // Generate tokens
@@ -115,10 +171,61 @@ class AuthService {
     await CacheService.set(`user:${user._id}`, user, 300);
 
     // Remove sensitive data
-    user.password = undefined;
     user.refreshToken = undefined;
 
-    return { user, tokens };
+    return {
+      action: isNewUser ? 'register' : 'login',
+      isNewUser,
+      user,
+      tokens,
+      redirectTo: isNewUser ? '/onboarding' : '/discover',
+    };
+  }
+
+  /**
+   * Check user status by phone number
+   */
+  async checkUserStatus(phoneNumber) {
+    if (!phoneNumber) {
+      throw new ValidationError('Phone number is required');
+    }
+
+    // Normalize phone number
+    const normalizedPhone = phoneNumber.trim().replace(/[\s\-\(\)]/g, '');
+
+    // Find user by phone number
+    const user = await User.findOne({ phoneNumber: normalizedPhone });
+
+    if (!user) {
+      // User doesn't exist - needs registration
+      return {
+        exists: false,
+        action: 'register',
+        message: 'User not found. Please complete registration.',
+        phoneNumber: normalizedPhone,
+      };
+    }
+
+    // Check if account is active
+    if (!user.isActive) {
+      throw new AuthenticationError('Your account has been deactivated');
+    }
+
+    // User exists - needs login
+    return {
+      exists: true,
+      action: 'login',
+      message: 'User found. Please verify your phone number.',
+      phoneNumber: normalizedPhone,
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phoneNumber: user.phoneNumber,
+        email: user.email,
+        profilePhoto: user.photos?.[0]?.url || null,
+      },
+    };
   }
 
   /**
@@ -171,107 +278,40 @@ class AuthService {
   }
 
   /**
-   * Forgot password - send reset email
-   */
-  async forgotPassword(email) {
-    const user = await User.findOne({ email: email.toLowerCase() });
-
-    if (!user) {
-      throw new NotFoundError('No user found with that email');
-    }
-
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    user.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    user.passwordResetExpires = Date.now() + 60 * 60 * 1000; // 1 hour
-
-    await user.save({ validateBeforeSave: false });
-
-    // Send reset email
-    try {
-      await EmailService.sendPasswordResetEmail(user, resetToken);
-      return true;
-    } catch (error) {
-      user.passwordResetToken = undefined;
-      user.passwordResetExpires = undefined;
-      await user.save({ validateBeforeSave: false });
-      throw new Error('Error sending email. Please try again later.');
-    }
-  }
-
-  /**
-   * Reset password using token
-   */
-  async resetPassword(token, newPassword) {
-    // Hash token
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-    // Find user with valid token
-    const user = await User.findOne({
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() },
-    });
-
-    if (!user) {
-      throw new ValidationError('Invalid or expired reset token');
-    }
-
-    // Set new password
-    user.password = newPassword;
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    await user.save();
-
-    return true;
-  }
-
-  /**
-   * Change password
-   */
-  async changePassword(userId, currentPassword, newPassword) {
-    // Get user with password
-    const user = await User.findById(userId).select('+password');
-
-    // Verify current password
-    const isPasswordValid = await user.comparePassword(currentPassword);
-    if (!isPasswordValid) {
-      throw new AuthenticationError('Current password is incorrect');
-    }
-
-    // Set new password
-    user.password = newPassword;
-    await user.save();
-
-    return true;
-  }
-
-  /**
    * Delete account
    */
-  async deleteAccount(userId, password) {
-    // Get user with password
-    const user = await User.findById(userId).select('+password');
+  async deleteAccount(userId, phoneNumber) {
+    // Get user
+    const user = await User.findById(userId);
 
-    // Verify password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      throw new AuthenticationError('Password is incorrect');
+    // Verify phone number matches
+    if (user.phoneNumber !== phoneNumber) {
+      throw new AuthenticationError('Phone number does not match');
     }
 
     // Soft delete - deactivate account
     user.isActive = false;
-    user.email = `deleted_${Date.now()}_${user.email}`;
+    user.phoneNumber = `deleted_${Date.now()}_${user.phoneNumber}`;
     await user.save({ validateBeforeSave: false });
 
     // Clear cache
     await CacheService.del(`user:${user._id}`);
 
-    // Send confirmation email (async)
-    EmailService.sendAccountDeletionEmail(user).catch(() => {});
+    // Send confirmation email (async) - only if email exists
+    if (user.email) {
+      EmailService.sendAccountDeletionEmail(user).catch(() => {});
+    }
 
     return true;
+  }
+
+  /**
+   * Resend OTP
+   */
+  async resendOTP(phoneNumber, purpose = 'login') {
+    // Same as sendOTP
+    return await this.sendOTP(phoneNumber, purpose);
   }
 }
 
 module.exports = new AuthService();
-

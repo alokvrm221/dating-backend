@@ -3,26 +3,55 @@ const ApiResponse = require('../utils/apiResponse');
 const { AuthService } = require('../services');
 
 /**
- * @desc    Register new user
- * @route   POST /api/v1/auth/register
+ * @desc    Send OTP to phone number
+ * @route   POST /api/v1/auth/send-otp
  * @access  Public
  */
-exports.register = asyncHandler(async (req, res) => {
-  const result = await AuthService.register(req.body);
+exports.sendOTP = asyncHandler(async (req, res) => {
+  const { phoneNumber, purpose } = req.body;
+  const result = await AuthService.sendOTP(phoneNumber, purpose);
 
-  ApiResponse.success(res, 201, 'Registration successful', result);
+  ApiResponse.success(res, 200, result.message, result);
 });
 
 /**
- * @desc    Login user
- * @route   POST /api/v1/auth/login
+ * @desc    Verify OTP and authenticate (login or register)
+ * @route   POST /api/v1/auth/verify-otp
  * @access  Public
  */
-exports.login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-  const result = await AuthService.login(email, password);
+exports.verifyOTP = asyncHandler(async (req, res) => {
+  const result = await AuthService.verifyOTP(req.body);
 
-  ApiResponse.success(res, 200, 'Login successful', result);
+  const statusCode = result.isNewUser ? 201 : 200;
+  const message = result.isNewUser
+    ? 'Registration successful! Welcome aboard!'
+    : 'Login successful! Welcome back!';
+
+  ApiResponse.success(res, statusCode, message, result);
+});
+
+/**
+ * @desc    Check user status (exists or needs registration)
+ * @route   POST /api/v1/auth/check
+ * @access  Public
+ */
+exports.checkUserStatus = asyncHandler(async (req, res) => {
+  const { phoneNumber } = req.body;
+  const result = await AuthService.checkUserStatus(phoneNumber);
+
+  ApiResponse.success(res, 200, result.message, result);
+});
+
+/**
+ * @desc    Resend OTP
+ * @route   POST /api/v1/auth/resend-otp
+ * @access  Public
+ */
+exports.resendOTP = asyncHandler(async (req, res) => {
+  const { phoneNumber, purpose } = req.body;
+  const result = await AuthService.resendOTP(phoneNumber, purpose);
+
+  ApiResponse.success(res, 200, result.message, result);
 });
 
 /**
@@ -60,51 +89,13 @@ exports.getMe = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Forgot password
- * @route   POST /api/v1/auth/forgot-password
- * @access  Public
- */
-exports.forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-  await AuthService.forgotPassword(email);
-
-  ApiResponse.success(res, 200, 'Password reset email sent');
-});
-
-/**
- * @desc    Reset password
- * @route   POST /api/v1/auth/reset-password/:token
- * @access  Public
- */
-exports.resetPassword = asyncHandler(async (req, res) => {
-  const { token } = req.params;
-  const { password } = req.body;
-  await AuthService.resetPassword(token, password);
-
-  ApiResponse.success(res, 200, 'Password reset successful');
-});
-
-/**
- * @desc    Change password
- * @route   PUT /api/v1/auth/change-password
- * @access  Private
- */
-exports.changePassword = asyncHandler(async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
-  await AuthService.changePassword(req.user._id, currentPassword, newPassword);
-
-  ApiResponse.success(res, 200, 'Password changed successfully');
-});
-
-/**
  * @desc    Delete account
  * @route   DELETE /api/v1/auth/delete-account
  * @access  Private
  */
 exports.deleteAccount = asyncHandler(async (req, res) => {
-  const { password } = req.body;
-  await AuthService.deleteAccount(req.user._id, password);
+  const { phoneNumber } = req.body;
+  await AuthService.deleteAccount(req.user._id, phoneNumber);
 
   ApiResponse.success(res, 200, 'Account deleted successfully');
 });
-

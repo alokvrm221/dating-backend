@@ -16,24 +16,27 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: [50, 'Last name cannot exceed 50 characters'],
     },
-    email: {
-      type: String,
-      required: [true, 'Email is required'],
-      unique: true,
-      lowercase: true,
-      trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
-    },
-    password: {
-      type: String,
-      required: [true, 'Password is required'],
-      minlength: [8, 'Password must be at least 8 characters'],
-      select: false, // Don't return password by default
-    },
     phoneNumber: {
       type: String,
+      required: [true, 'Phone number is required'],
+      unique: true,
       trim: true,
-      sparse: true,
+      index: true,
+    },
+    email: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      sparse: true, // Allow null/undefined, but if present must be unique
+      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
+    },
+    // Password removed - using OTP authentication only
+    phoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+    phoneVerifiedAt: {
+      type: Date,
     },
 
     // Profile Information
@@ -441,7 +444,8 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes for better query performance
-userSchema.index({ email: 1 });
+userSchema.index({ phoneNumber: 1 });
+userSchema.index({ email: 1 }, { sparse: true });
 userSchema.index({ 'location.coordinates': '2dsphere' });
 userSchema.index({ isActive: 1, isVerified: 1 });
 userSchema.index({ createdAt: -1 });
@@ -466,23 +470,7 @@ userSchema.virtual('primaryPhoto').get(function () {
   return primary || this.photos[0] || null;
 });
 
-// Hash password before saving
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-
-  try {
-    const salt = await bcrypt.genSalt(12);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Method to compare password
-userSchema.methods.comparePassword = async function (candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
+// Password-related methods removed - using OTP authentication only
 
 // Method to check if user is online (active in last 5 minutes)
 userSchema.methods.isOnline = function () {

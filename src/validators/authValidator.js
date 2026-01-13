@@ -1,112 +1,117 @@
 const { body } = require('express-validator');
 
-exports.registerValidator = [
-  body('firstName')
+exports.sendOTPValidator = [
+  body('phoneNumber')
     .trim()
     .notEmpty()
-    .withMessage('First name is required')
+    .withMessage('Phone number is required')
+    .matches(/^[\d\s\-\+\(\)]+$/)
+    .withMessage('Please provide a valid phone number'),
+
+  body('purpose')
+    .optional()
+    .isIn(['login', 'register'])
+    .withMessage('Purpose must be either login or register'),
+];
+
+exports.verifyOTPValidator = [
+  body('phoneNumber')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required')
+    .matches(/^[\d\s\-\+\(\)]+$/)
+    .withMessage('Please provide a valid phone number'),
+
+  body('otp')
+    .trim()
+    .notEmpty()
+    .withMessage('OTP is required')
+    .isLength({ min: 6, max: 6 })
+    .withMessage('OTP must be 6 digits')
+    .isNumeric()
+    .withMessage('OTP must contain only numbers'),
+
+  // Optional registration fields - only validated if provided
+  body('firstName')
+    .optional()
+    .trim()
     .isLength({ max: 50 })
     .withMessage('First name cannot exceed 50 characters'),
 
   body('lastName')
+    .optional()
     .trim()
-    .notEmpty()
-    .withMessage('Last name is required')
     .isLength({ max: 50 })
     .withMessage('Last name cannot exceed 50 characters'),
 
-  body('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Invalid email format').normalizeEmail(),
-
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+  body('email')
+    .optional()
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email format')
+    .normalizeEmail(),
 
   body('dateOfBirth')
-    .notEmpty()
-    .withMessage('Date of birth is required')
+    .optional()
     .isISO8601()
     .withMessage('Invalid date format')
     .custom((value) => {
-      const age = new Date().getFullYear() - new Date(value).getFullYear();
-      if (age < 18) {
-        throw new Error('You must be at least 18 years old');
+      if (value) {
+        const age = new Date().getFullYear() - new Date(value).getFullYear();
+        if (age < 18) {
+          throw new Error('You must be at least 18 years old');
+        }
       }
       return true;
     }),
 
   body('gender')
-    .notEmpty()
-    .withMessage('Gender is required')
+    .optional()
     .isIn(['male', 'female', 'non-binary', 'other'])
     .withMessage('Invalid gender'),
 
   body('interestedIn')
+    .optional()
     .isArray({ min: 1 })
     .withMessage('Interested in must be an array with at least one value')
     .custom((value) => {
-      const validOptions = ['male', 'female', 'non-binary', 'other', 'everyone'];
-      return value.every((item) => validOptions.includes(item));
+      if (value) {
+        const validOptions = ['male', 'female', 'non-binary', 'other', 'everyone'];
+        return value.every((item) => validOptions.includes(item));
+      }
+      return true;
     })
     .withMessage('Invalid interested in value'),
 
   body('agreedToTerms')
-    .notEmpty()
-    .withMessage('You must agree to terms and conditions')
+    .optional()
     .isBoolean()
-    .withMessage('Agreed to terms must be a boolean')
-    .custom((value) => value === true)
-    .withMessage('You must agree to terms and conditions'),
+    .withMessage('Agreed to terms must be a boolean'),
 
   body('agreedToPrivacyPolicy')
-    .notEmpty()
-    .withMessage('You must agree to privacy policy')
+    .optional()
     .isBoolean()
-    .withMessage('Agreed to privacy policy must be a boolean')
-    .custom((value) => value === true)
-    .withMessage('You must agree to privacy policy'),
+    .withMessage('Agreed to privacy policy must be a boolean'),
 ];
 
-exports.loginValidator = [
-  body('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Invalid email format').normalizeEmail(),
-
-  body('password').notEmpty().withMessage('Password is required'),
+exports.checkUserStatusValidator = [
+  body('phoneNumber')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required')
+    .matches(/^[\d\s\-\+\(\)]+$/)
+    .withMessage('Please provide a valid phone number'),
 ];
 
 exports.refreshTokenValidator = [
   body('refreshToken').notEmpty().withMessage('Refresh token is required'),
 ];
 
-exports.forgotPasswordValidator = [
-  body('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Invalid email format').normalizeEmail(),
-];
-
-exports.resetPasswordValidator = [
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
-];
-
-exports.changePasswordValidator = [
-  body('currentPassword').notEmpty().withMessage('Current password is required'),
-
-  body('newPassword')
-    .notEmpty()
-    .withMessage('New password is required')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
-];
-
 exports.deleteAccountValidator = [
-  body('password').notEmpty().withMessage('Password is required to delete account'),
+  body('phoneNumber')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required to delete account')
+    .matches(/^[\d\s\-\+\(\)]+$/)
+    .withMessage('Please provide a valid phone number'),
 ];
-
