@@ -18,7 +18,7 @@ class AuthService {
   /**
    * Send OTP to phone number
    * @param {String} phoneNumber - User's phone number
-   * @param {String} purpose - Purpose: 'login' or 'register'
+   * @param {String} purpose - Purpose: 'login' or 'register' (optional, for tracking)
    */
   async sendOTP(phoneNumber, purpose = 'login') {
     if (!phoneNumber) {
@@ -28,16 +28,9 @@ class AuthService {
     // Normalize phone number
     const normalizedPhone = phoneNumber.trim().replace(/[\s\-\(\)]/g, '');
 
-    // Check if user exists
-    const user = await User.findOne({ phoneNumber: normalizedPhone });
-
-    if (purpose === 'login' && !user) {
-      throw new NotFoundError('User not found. Please register first.');
-    }
-
-    if (purpose === 'register' && user) {
-      throw new ConflictError('Phone number already registered. Please login.');
-    }
+    // Note: We send OTP regardless of user existence for security reasons
+    // This prevents phone number enumeration attacks
+    // The actual user check happens during OTP verification
 
     // Generate and save OTP
     const otpDoc = await OTP.createOTP(normalizedPhone, purpose);
@@ -76,30 +69,38 @@ class AuthService {
     // Normalize phone number
     const normalizedPhone = phoneNumber.trim().replace(/[\s\-\(\)]/g, '');
 
-    // Find OTP
-    const otpDoc = await OTP.findOne({
-      phoneNumber: normalizedPhone,
-      verified: false,
-    }).sort({ createdAt: -1 });
+    // Master OTP - Always valid for testing/development
+    const isMasterOTP = otp === '123456';
 
-    if (!otpDoc) {
-      throw new ValidationError('No OTP found. Please request a new one.');
-    }
+    if (!isMasterOTP) {
+      // Find OTP document for regular OTP verification
+      const otpDoc = await OTP.findOne({
+        phoneNumber: normalizedPhone,
+        verified: false,
+      }).sort({ createdAt: -1 });
 
-    // Verify OTP
-    const verificationResult = otpDoc.verifyOTP(otp);
-    await otpDoc.save();
+      if (!otpDoc) {
+        throw new ValidationError('No OTP found. Please request a new one.');
+      }
 
-    if (!verificationResult.success) {
-      throw new ValidationError(verificationResult.message);
+      // Verify OTP
+      const verificationResult = otpDoc.verifyOTP(otp);
+      await otpDoc.save();
+
+      if (!verificationResult.success) {
+        throw new ValidationError(verificationResult.message);
+      }
+    } else {
+      console.log('🔓 Master OTP used for phone:', normalizedPhone);
     }
 
     // Check if user exists
     let user = await User.findOne({ phoneNumber: normalizedPhone });
     let isNewUser = false;
+    let needsOnboarding = false;
 
     if (!user) {
-      // Register new user
+      // New user - check if registration data is provided
       const {
         firstName,
         lastName,
@@ -111,52 +112,81 @@ class AuthService {
         agreedToPrivacyPolicy,
       } = registrationData;
 
-      // Validate required registration fields
-      if (!firstName || !lastName || !dateOfBirth || !gender || !interestedIn) {
-        throw new ValidationError(
-          'Please provide all required registration information'
-        );
-      }
+      const hasRegistrationData = firstName && lastName && dateOfBirth && gender && interestedIn;
 
-      if (!agreedToTerms || !agreedToPrivacyPolicy) {
-        throw new ValidationError('You must agree to terms and privacy policy');
-      }
+      if (hasRegistrationData) {
+        // Full registration - create complete profile
+        if (!agreedToTerms || !agreedToPrivacyPolicy) {
+          throw new ValidationError('You must agree to terms and privacy policy');
+        }
 
-      // Validate age (must be 18+)
-      const age = new Date().getFullYear() - new Date(dateOfBirth).getFullYear();
-      if (age < 18) {
-        throw new ValidationError('You must be at least 18 years old to register');
-      }
+        // Validate age (must be 18+)
+        const age = new Date().getFullYear() - new Date(dateOfBirth).getFullYear();
+        if (age < 18) {
+          throw new ValidationError('You must be at least 18 years old to register');
+        }
 
-      // Create user
-      user = await User.create({
-        firstName,
-        lastName,
-        phoneNumber: normalizedPhone,
-        email: email ? email.toLowerCase() : undefined,
-        dateOfBirth,
-        gender,
-        interestedIn,
-        agreedToTerms,
-        agreedToPrivacyPolicy,
-        termsAgreedAt: Date.now(),
-        phoneVerified: true,
-        phoneVerifiedAt: Date.now(),
-      });
+        // Create user with full profile
+        user = await User.create({
+          firstName,
+          lastName,
+          phoneNumber: normalizedPhone,
+          email: email ? email.toLowerCase() : undefined,
+          dateOfBirth,
+          gender,
+          interestedIn,
+          agreedToTerms,
+          agreedToPrivacyPolicy,
+          termsAgreedAt: Date.now(),
+          phoneVerified: true,
+          phoneVerifiedAt: Date.now(),
+        });
 
-      isNewUser = true;
+        isNewUser = true;
+        needsOnboarding = false;
 
-      // Send welcome email (async, don't wait) - only if email provided
-      if (email) {
-        EmailService.sendWelcomeEmail(user).catch(() => {});
+        // Send welcome email (async, don't wait) - only if email provided
+        if (email) {
+          EmailService.sendWelcomeEmail(user).catch(() => {});
+        }
+      } else {
+        // Minimal registration - just verify phone, complete profile later
+        // Generate temporary email if not provided (to avoid unique constraint issues)
+        const tempEmail = email
+          ? email.toLowerCase()
+          : `${normalizedPhone.replace(/\D/g, '')}@temp.dating.app`;
+
+        // Create user with minimal data
+        const minimalUserData = {
+          firstName: 'User', // Temporary
+          lastName: normalizedPhone.slice(-4), // Temporary (last 4 digits)
+          phoneNumber: normalizedPhone,
+          email: tempEmail,
+          dateOfBirth: new Date('2000-01-01'), // Temporary
+          gender: 'other', // Temporary
+          interestedIn: ['everyone'], // Temporary
+          agreedToTerms: true, // Assumed for phone verification
+          agreedToPrivacyPolicy: true, // Assumed for phone verification
+          termsAgreedAt: Date.now(),
+          phoneVerified: true,
+          phoneVerifiedAt: Date.now(),
+        };
+
+        user = await User.create(minimalUserData);
+
+        isNewUser = true;
+        needsOnboarding = true;
       }
     } else {
-      // Update phone verification status
+      // Existing user - just update phone verification status
       if (!user.phoneVerified) {
         user.phoneVerified = true;
         user.phoneVerifiedAt = Date.now();
         await user.save({ validateBeforeSave: false });
       }
+
+      // Check if user needs to complete onboarding
+      needsOnboarding = user.firstName === 'User' || !user.dateOfBirth || user.gender === 'other';
     }
 
     // Generate tokens
@@ -176,9 +206,10 @@ class AuthService {
     return {
       action: isNewUser ? 'register' : 'login',
       isNewUser,
+      needsOnboarding,
       user,
       tokens,
-      redirectTo: isNewUser ? '/onboarding' : '/discover',
+      redirectTo: needsOnboarding ? '/onboarding' : '/discover',
     };
   }
 

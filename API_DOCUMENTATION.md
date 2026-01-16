@@ -26,11 +26,25 @@
 ### Overview
 The API uses **OTP (One-Time Password)** based authentication with phone numbers. No passwords required!
 
-**Authentication Flow**:
-1. Send OTP to phone number
-2. Verify OTP
-3. Receive JWT tokens
-4. Use access token for authenticated requests
+**Authentication Flow for NEW Users**:
+1. Check if user exists (`POST /auth/check`) - Optional
+2. Send OTP to phone number (`POST /auth/send-otp`) - Optional
+3. Verify OTP (`POST /auth/verify-otp`) - Just phone + OTP
+4. Receive JWT tokens + `needsOnboarding: true`
+5. Complete profile (`POST /users/complete-profile`) - Provide registration data
+6. Redirect to `/discover`
+
+**Authentication Flow for EXISTING Users**:
+1. Check if user exists (`POST /auth/check`) - Optional
+2. Send OTP to phone number (`POST /auth/send-otp`) - Optional
+3. Verify OTP (`POST /auth/verify-otp`) - Just phone + OTP
+4. Receive JWT tokens + `needsOnboarding: false`
+5. Redirect to `/discover`
+
+**Quick Test Flow** (Using Master OTP):
+1. Call `/auth/verify-otp` with phone + OTP `123456`
+2. If `needsOnboarding: true`, call `/users/complete-profile`
+3. Done!
 
 ---
 
@@ -121,10 +135,14 @@ Send a 6-digit OTP to the user's phone number.
 ```
 
 **Notes**:
+- ✅ **Always returns 200** - OTP is sent regardless of whether the user exists or not
+- This prevents phone number enumeration attacks (security best practice)
+- 🔓 **OTP is ALWAYS `123456`** - For easy testing and development
 - OTP is valid for **5 minutes**
 - OTP is **6 digits** numeric
-- In production, `otp` field will NOT be included in response
-- OTP is sent via SMS to the phone number
+- In development, `otp` field is included in response
+- In production, consider enabling random OTP generation and SMS sending
+- User existence check happens during OTP verification, not during OTP sending
 
 ---
 
@@ -148,7 +166,7 @@ Verify OTP for existing users to login.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | phoneNumber | string | Yes | User's phone number |
-| otp | string | Yes | 6-digit OTP received via SMS |
+| otp | string | Yes | 6-digit OTP received via SMS (or use `123456` as master OTP) |
 
 **Response**:
 ```json
@@ -200,9 +218,9 @@ Verify OTP for existing users to login.
 
 ---
 
-### 4. Verify OTP (Register)
+### 4. Verify OTP (New User - Minimal)
 
-Verify OTP and complete registration for new users.
+Verify OTP for new users WITHOUT registration data. Creates minimal profile, user completes onboarding later.
 
 **Endpoint**: `POST /auth/verify-otp`  
 **Authentication**: Not required  
@@ -212,15 +230,7 @@ Verify OTP and complete registration for new users.
 ```json
 {
   "phoneNumber": "+1234567890",
-  "otp": "123456",
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john@example.com",
-  "dateOfBirth": "1995-01-01",
-  "gender": "male",
-  "interestedIn": ["female"],
-  "agreedToTerms": true,
-  "agreedToPrivacyPolicy": true
+  "otp": "123456"
 }
 ```
 
@@ -228,15 +238,7 @@ Verify OTP and complete registration for new users.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | phoneNumber | string | Yes | User's phone number |
-| otp | string | Yes | 6-digit OTP received via SMS |
-| firstName | string | Yes | User's first name (max 50 chars) |
-| lastName | string | Yes | User's last name (max 50 chars) |
-| email | string | No | User's email address |
-| dateOfBirth | string | Yes | Date of birth (YYYY-MM-DD, must be 18+) |
-| gender | string | Yes | One of: "male", "female", "non-binary", "other" |
-| interestedIn | array | Yes | Array of: "male", "female", "non-binary", "other", "everyone" |
-| agreedToTerms | boolean | Yes | Must be true |
-| agreedToPrivacyPolicy | boolean | Yes | Must be true |
+| otp | string | Yes | 6-digit OTP (use `123456` for testing) |
 
 **Response**:
 ```json
@@ -246,21 +248,18 @@ Verify OTP and complete registration for new users.
   "data": {
     "action": "register",
     "isNewUser": true,
+    "needsOnboarding": true,
     "user": {
       "_id": "507f1f77bcf86cd799439011",
-      "firstName": "John",
-      "lastName": "Doe",
+      "firstName": "User",
+      "lastName": "7890",
       "phoneNumber": "+1234567890",
-      "email": "john@example.com",
+      "email": "1234567890@temp.dating.app",
       "phoneVerified": true,
-      "phoneVerifiedAt": "2026-01-13T10:30:00.000Z",
-      "dateOfBirth": "1995-01-01T00:00:00.000Z",
-      "gender": "male",
-      "interestedIn": ["female"],
-      "isActive": true,
-      "isVerified": false,
-      "isPremium": false,
-      "createdAt": "2026-01-13T10:30:00.000Z"
+      "phoneVerifiedAt": "2026-01-14T10:30:00.000Z",
+      "dateOfBirth": "2000-01-01T00:00:00.000Z",
+      "gender": "other",
+      "interestedIn": ["everyone"]
     },
     "tokens": {
       "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -270,6 +269,8 @@ Verify OTP and complete registration for new users.
   }
 }
 ```
+
+**Note**: User profile has temporary data. Use `/users/complete-profile` to finish onboarding.
 
 ---
 
@@ -448,7 +449,61 @@ Get any user's profile by ID.
 
 ---
 
-### 2. Update Profile
+### 2. Complete Profile (Onboarding)
+
+Complete user profile after minimal registration. Required for users who verified OTP without providing full registration data.
+
+**Endpoint**: `POST /users/complete-profile`  
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john@example.com",
+  "dateOfBirth": "1995-01-01",
+  "gender": "male",
+  "interestedIn": ["female"],
+  "bio": "Love hiking and coffee",
+  "occupation": "Software Engineer",
+  "height": 180,
+  "interests": ["hiking", "coffee", "travel"]
+}
+```
+
+**Parameters**:
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| firstName | string | Yes | User's first name |
+| lastName | string | Yes | User's last name |
+| dateOfBirth | string | Yes | Date of birth (YYYY-MM-DD, must be 18+) |
+| gender | string | Yes | One of: "male", "female", "non-binary", "other" |
+| interestedIn | array | Yes | Array of: "male", "female", "non-binary", "other", "everyone" |
+| email | string | No | User's email address |
+| bio | string | No | User bio (max 500 chars) |
+| occupation | string | No | User's occupation |
+| education | string | No | Education level |
+| height | number | No | Height in cm |
+| interests | array | No | Array of interests |
+| location | object | No | User location |
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Profile completed successfully",
+  "data": {
+    "user": {
+      // complete user profile
+    }
+  }
+}
+```
+
+---
+
+### 3. Update Profile
 
 Update the current user's profile.
 
@@ -1387,23 +1442,59 @@ The API automatically normalizes phone numbers.
 
 ## 🧪 Testing
 
+### OTP is Always 123456
+
+🔓 **ALL OTPs are `123456`** - Both generated OTPs and the master OTP!
+
+- When you call `/send-otp`, the generated OTP is always `123456`
+- You can also use `123456` without calling `/send-otp` first (master OTP)
+- This makes testing super easy!
+
+**Quick Test Example**:
+```bash
+# Register a new user instantly
+POST /auth/verify-otp
+{
+  "phoneNumber": "+1234567890",
+  "otp": "123456",
+  "firstName": "Test",
+  "lastName": "User",
+  "dateOfBirth": "1995-01-01",
+  "gender": "male",
+  "interestedIn": ["female"],
+  "agreedToTerms": true,
+  "agreedToPrivacyPolicy": true
+}
+
+# Login existing user instantly
+POST /auth/verify-otp
+{
+  "phoneNumber": "+1234567890",
+  "otp": "123456"
+}
+```
+
 ### Development Environment
 
 **Base URL**: `http://localhost:5000/api/v1`
 
 In development mode:
+- 🔓 **All OTPs are `123456`** (both generated and master OTP)
 - OTP is returned in the API response
 - OTP is logged to server console
 - No actual SMS is sent
+- Perfect for testing!
 
 ### Production Environment
 
 **Base URL**: `https://api.datingapp.com/api/v1`
 
-In production mode:
-- OTP is sent via SMS
-- OTP is NOT returned in response
-- All security features enabled
+⚠️ **Important for Production**:
+- Currently, OTP generation is hardcoded to `123456`
+- You should enable random OTP generation before production
+- Uncomment the random generation code in `src/models/OTP.js`
+- Enable SMS service integration
+- Consider disabling master OTP or using environment variable
 
 ---
 

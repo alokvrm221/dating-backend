@@ -25,6 +25,98 @@ class UserService {
   }
 
   /**
+   * Complete user profile (onboarding)
+   */
+  async completeProfile(userId, profileData) {
+    const {
+      firstName,
+      lastName,
+      email,
+      dateOfBirth,
+      gender,
+      interestedIn,
+      bio,
+      occupation,
+      education,
+      height,
+      interests,
+      location,
+    } = profileData;
+
+    // Validate required fields
+    if (!firstName || !lastName || !dateOfBirth || !gender || !interestedIn) {
+      throw new ValidationError(
+        'Please provide all required fields: firstName, lastName, dateOfBirth, gender, interestedIn'
+      );
+    }
+
+    // Validate age (must be 18+)
+    const age = new Date().getFullYear() - new Date(dateOfBirth).getFullYear();
+    if (age < 18) {
+      throw new ValidationError('You must be at least 18 years old');
+    }
+
+    // Check if email is being updated and if it already exists
+    if (email) {
+      const normalizedEmail = email.toLowerCase();
+      
+      // Skip validation if it's a temp email format
+      const isTempEmail = normalizedEmail.endsWith('@temp.dating.app');
+      
+      if (!isTempEmail) {
+        // Check if email already exists for another user
+        const existingUser = await User.findOne({ 
+          email: normalizedEmail,
+          _id: { $ne: userId } // Exclude current user
+        });
+        
+        if (existingUser) {
+          throw new ValidationError('Email already in use by another account');
+        }
+      }
+    }
+
+    // Update user with complete profile
+    const updates = {
+      firstName,
+      lastName,
+      dateOfBirth,
+      gender,
+      interestedIn,
+    };
+
+    // Add optional fields if provided
+    // Only update email if provided and not a temp email
+    if (email) {
+      const normalizedEmail = email.toLowerCase();
+      const isTempEmail = normalizedEmail.endsWith('@temp.dating.app');
+      if (!isTempEmail) {
+        updates.email = normalizedEmail;
+      }
+    }
+    if (bio) updates.bio = bio;
+    if (occupation) updates.occupation = occupation;
+    if (education) updates.education = education;
+    if (height) updates.height = height;
+    if (interests) updates.interests = interests;
+    if (location) updates.location = location;
+
+    const user = await User.findByIdAndUpdate(userId, updates, {
+      new: true,
+      runValidators: true,
+    }).select('-password -refreshToken');
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    // Clear cache
+    await CacheService.del(`user:${userId}`);
+
+    return user;
+  }
+
+  /**
    * Update user profile
    */
   async updateProfile(userId, updates) {

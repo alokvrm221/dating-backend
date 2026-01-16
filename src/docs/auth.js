@@ -1,9 +1,16 @@
 /**
  * @swagger
- * /auth/check:
+ * /auth/send-otp:
  *   post:
- *     summary: Check if user exists (Unified Auth - Step 1)
- *     description: Check if a user exists by email or phone number. Returns whether user needs to login or register.
+ *     summary: Send OTP to phone number
+ *     description: |
+ *       Send a 6-digit OTP to the user's phone number.
+ *       
+ *       **Note**: OTP is ALWAYS `123456` in current configuration (for easy testing).
+ *       
+ *       - OTP is sent regardless of whether user exists (prevents phone enumeration)
+ *       - OTP is valid for 5 minutes
+ *       - In development, OTP is returned in response
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -12,15 +19,20 @@
  *           schema:
  *             type: object
  *             required:
- *               - identifier
+ *               - phoneNumber
  *             properties:
- *               identifier:
+ *               phoneNumber:
  *                 type: string
- *                 description: Email address or phone number
- *                 example: john@example.com
+ *                 description: User's phone number in international format
+ *                 example: "+1234567890"
+ *               purpose:
+ *                 type: string
+ *                 enum: [login, register]
+ *                 description: Purpose of OTP (optional, for tracking)
+ *                 example: login
  *     responses:
  *       200:
- *         description: User status retrieved successfully
+ *         description: OTP sent successfully
  *         content:
  *           application/json:
  *             schema:
@@ -31,45 +43,42 @@
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: User found. Please enter your password to continue.
+ *                   example: OTP sent successfully
  *                 data:
  *                   type: object
  *                   properties:
- *                     exists:
- *                       type: boolean
- *                       example: true
- *                     action:
+ *                     phoneNumber:
  *                       type: string
- *                       enum: [login, register]
+ *                       example: "+1234567890"
+ *                     purpose:
+ *                       type: string
  *                       example: login
- *                     identifier:
+ *                     expiresIn:
+ *                       type: number
+ *                       example: 300
+ *                       description: Expiration time in seconds
+ *                     otp:
  *                       type: string
- *                       example: john@example.com
- *                     identifierType:
- *                       type: string
- *                       enum: [email, phone]
- *                       example: email
- *                     user:
- *                       type: object
- *                       description: Basic user info (only if exists is true)
- *                       properties:
- *                         _id:
- *                           type: string
- *                         firstName:
- *                           type: string
- *                         lastName:
- *                           type: string
- *                         email:
- *                           type: string
- *                         profilePhoto:
- *                           type: string
+ *                       example: "123456"
+ *                       description: OTP (only in development mode, always 123456)
  *       400:
  *         description: Validation error
+ *       429:
+ *         description: Too many requests (rate limit exceeded)
  *
- * /auth/authenticate:
+ * /auth/verify-otp:
  *   post:
- *     summary: Unified authentication (Login or Register)
- *     description: Single endpoint that handles both login and registration based on user existence. If user exists, performs login. If not, performs registration.
+ *     summary: Verify OTP and authenticate (Login or Register)
+ *     description: |
+ *       Single endpoint that handles both login and registration.
+ *       
+ *       **For Testing**: Use OTP `123456` (works without calling /send-otp first!)
+ *       
+ *       **For Existing Users**: Only phoneNumber and otp are required (login)
+ *       
+ *       **For New Users**: Only phoneNumber and otp are required (creates minimal profile)
+ *       - Returns `needsOnboarding: true`
+ *       - Complete profile later with `/users/complete-profile`
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -78,54 +87,20 @@
  *           schema:
  *             type: object
  *             required:
- *               - identifier
- *               - password
+ *               - phoneNumber
+ *               - otp
  *             properties:
- *               identifier:
+ *               phoneNumber:
  *                 type: string
- *                 description: Email address or phone number
- *                 example: john@example.com
- *               password:
+ *                 description: User's phone number
+ *                 example: "+1234567890"
+ *               otp:
  *                 type: string
- *                 format: password
- *                 minLength: 8
- *                 example: Password123
- *               firstName:
- *                 type: string
- *                 description: Required for new registration
- *                 example: John
- *               lastName:
- *                 type: string
- *                 description: Required for new registration
- *                 example: Doe
- *               dateOfBirth:
- *                 type: string
- *                 format: date
- *                 description: Required for new registration
- *                 example: "1995-01-01"
- *               gender:
- *                 type: string
- *                 enum: [male, female, non-binary, other]
- *                 description: Required for new registration
- *                 example: male
- *               interestedIn:
- *                 type: array
- *                 items:
- *                   type: string
- *                   enum: [male, female, non-binary, other, everyone]
- *                 description: Required for new registration
- *                 example: ["female"]
- *               agreedToTerms:
- *                 type: boolean
- *                 description: Required for new registration
- *                 example: true
- *               agreedToPrivacyPolicy:
- *                 type: boolean
- *                 description: Required for new registration
- *                 example: true
+ *                 description: 6-digit OTP (use 123456 for testing)
+ *                 example: "123456"
  *     responses:
  *       200:
- *         description: Login successful
+ *         description: Login successful (existing user)
  *         content:
  *           application/json:
  *             schema:
@@ -148,18 +123,21 @@
  *                       example: false
  *                     user:
  *                       type: object
+ *                       description: User profile data
  *                     tokens:
  *                       type: object
  *                       properties:
  *                         accessToken:
  *                           type: string
+ *                           description: JWT access token (valid 15 minutes)
  *                         refreshToken:
  *                           type: string
+ *                           description: JWT refresh token (valid 7 days)
  *                     redirectTo:
  *                       type: string
  *                       example: /discover
  *       201:
- *         description: Registration successful
+ *         description: Registration successful (new user)
  *         content:
  *           application/json:
  *             schema:
@@ -180,8 +158,13 @@
  *                     isNewUser:
  *                       type: boolean
  *                       example: true
+ *                     needsOnboarding:
+ *                       type: boolean
+ *                       example: true
+ *                       description: If true, user must complete profile via /users/complete-profile
  *                     user:
  *                       type: object
+ *                       description: User profile data (minimal for new users)
  *                     tokens:
  *                       type: object
  *                       properties:
@@ -193,14 +176,14 @@
  *                       type: string
  *                       example: /onboarding
  *       400:
- *         description: Validation error
- *       401:
- *         description: Invalid credentials (for login)
+ *         description: Validation error or invalid OTP
+ *       429:
+ *         description: Too many requests
  *
- * /auth/register:
+ * /auth/resend-otp:
  *   post:
- *     summary: Register a new user (Traditional - Deprecated)
- *     description: Use /auth/authenticate for unified authentication flow
+ *     summary: Resend OTP
+ *     description: Resend OTP if previous one expired or wasn't received. Same as /send-otp.
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -209,91 +192,25 @@
  *           schema:
  *             type: object
  *             required:
- *               - firstName
- *               - lastName
- *               - email
- *               - password
- *               - dateOfBirth
- *               - gender
- *               - interestedIn
- *               - agreedToTerms
- *               - agreedToPrivacyPolicy
+ *               - phoneNumber
  *             properties:
- *               firstName:
- *                 type: string
- *                 example: John
- *               lastName:
- *                 type: string
- *                 example: Doe
- *               email:
- *                 type: string
- *                 format: email
- *                 example: john@example.com
- *               password:
- *                 type: string
- *                 format: password
- *                 minLength: 8
- *                 example: Password123
  *               phoneNumber:
  *                 type: string
  *                 example: "+1234567890"
- *               dateOfBirth:
+ *               purpose:
  *                 type: string
- *                 format: date
- *                 example: "1995-01-01"
- *               gender:
- *                 type: string
- *                 enum: [male, female, non-binary, other]
- *                 example: male
- *               interestedIn:
- *                 type: array
- *                 items:
- *                   type: string
- *                   enum: [male, female, non-binary, other, everyone]
- *                 example: ["female"]
- *               agreedToTerms:
- *                 type: boolean
- *                 example: true
- *               agreedToPrivacyPolicy:
- *                 type: boolean
- *                 example: true
+ *                 enum: [login, register]
+ *                 example: login
  *     responses:
- *       201:
- *         description: User registered successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Registration successful
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       type: object
- *                     tokens:
- *                       type: object
- *                       properties:
- *                         accessToken:
- *                           type: string
- *                         refreshToken:
- *                           type: string
- *       400:
- *         description: Validation error
- *       409:
- *         description: Email already registered
- */
-
-/**
- * @swagger
- * /auth/login:
+ *       200:
+ *         description: OTP resent successfully
+ *       429:
+ *         description: Too many requests
+ *
+ * /auth/check:
  *   post:
- *     summary: Login user
+ *     summary: Check if user exists by phone number
+ *     description: Check if a user exists by phone number. Returns whether user needs to login or register.
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -302,20 +219,15 @@
  *           schema:
  *             type: object
  *             required:
- *               - email
- *               - password
+ *               - phoneNumber
  *             properties:
- *               email:
+ *               phoneNumber:
  *                 type: string
- *                 format: email
- *                 example: john@example.com
- *               password:
- *                 type: string
- *                 format: password
- *                 example: Password123
+ *                 description: Phone number in international format
+ *                 example: "+1234567890"
  *     responses:
  *       200:
- *         description: Login successful
+ *         description: User status retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -326,28 +238,41 @@
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: Login successful
+ *                   example: User found. Please verify your phone number.
  *                 data:
  *                   type: object
  *                   properties:
+ *                     exists:
+ *                       type: boolean
+ *                       example: true
+ *                     action:
+ *                       type: string
+ *                       enum: [login, register]
+ *                       example: login
+ *                     phoneNumber:
+ *                       type: string
+ *                       example: "+1234567890"
  *                     user:
  *                       type: object
- *                     tokens:
- *                       type: object
+ *                       description: Basic user info (only if exists is true)
  *                       properties:
- *                         accessToken:
+ *                         _id:
  *                           type: string
- *                         refreshToken:
+ *                         firstName:
  *                           type: string
- *       401:
- *         description: Invalid credentials
- */
-
-/**
- * @swagger
+ *                         lastName:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *                         profilePhoto:
+ *                           type: string
+ *       400:
+ *         description: Validation error
+ *
  * /auth/refresh-token:
  *   post:
  *     summary: Refresh access token
+ *     description: Get a new access token using refresh token
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -364,15 +289,34 @@
  *     responses:
  *       200:
  *         description: Token refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Token refreshed successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tokens:
+ *                       type: object
+ *                       properties:
+ *                         accessToken:
+ *                           type: string
+ *                         refreshToken:
+ *                           type: string
  *       401:
  *         description: Invalid refresh token
- */
-
-/**
- * @swagger
+ *
  * /auth/logout:
  *   post:
  *     summary: Logout user
+ *     description: Logout current user and invalidate refresh token
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
@@ -381,122 +325,41 @@
  *         description: Logout successful
  *       401:
  *         description: Unauthorized
- */
-
-/**
- * @swagger
+ *
  * /auth/me:
  *   get:
  *     summary: Get current user profile
+ *     description: Get the authenticated user's profile information
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: User profile retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: User profile retrieved
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       description: Complete user profile
  *       401:
  *         description: Unauthorized
- */
-
-/**
- * @swagger
- * /auth/forgot-password:
- *   post:
- *     summary: Request password reset
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: john@example.com
- *     responses:
- *       200:
- *         description: Password reset email sent
- *       404:
- *         description: User not found
- */
-
-/**
- * @swagger
- * /auth/reset-password/{token}:
- *   post:
- *     summary: Reset password using token
- *     tags: [Authentication]
- *     parameters:
- *       - in: path
- *         name: token
- *         required: true
- *         schema:
- *           type: string
- *         description: Password reset token
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - password
- *             properties:
- *               password:
- *                 type: string
- *                 format: password
- *                 minLength: 8
- *                 example: NewPassword123
- *     responses:
- *       200:
- *         description: Password reset successful
- *       400:
- *         description: Invalid or expired token
- */
-
-/**
- * @swagger
- * /auth/change-password:
- *   put:
- *     summary: Change password
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - currentPassword
- *               - newPassword
- *             properties:
- *               currentPassword:
- *                 type: string
- *                 format: password
- *                 example: Password123
- *               newPassword:
- *                 type: string
- *                 format: password
- *                 minLength: 8
- *                 example: NewPassword123
- *     responses:
- *       200:
- *         description: Password changed successfully
- *       401:
- *         description: Current password is incorrect
- */
-
-/**
- * @swagger
+ *
  * /auth/delete-account:
  *   delete:
  *     summary: Delete user account
+ *     description: Permanently delete the user's account
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
@@ -507,16 +370,17 @@
  *           schema:
  *             type: object
  *             required:
- *               - password
+ *               - phoneNumber
  *             properties:
- *               password:
+ *               phoneNumber:
  *                 type: string
- *                 format: password
- *                 example: Password123
+ *                 description: Phone number for confirmation
+ *                 example: "+1234567890"
  *     responses:
  *       200:
  *         description: Account deleted successfully
  *       401:
- *         description: Password is incorrect
+ *         description: Unauthorized or phone number mismatch
  */
 
+module.exports = {};

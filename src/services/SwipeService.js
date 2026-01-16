@@ -20,7 +20,7 @@ class SwipeService {
     const filters = {
       _id: { $ne: currentUser._id, $nin: [...swipedUsers, ...currentUser.blockedUsers] },
       isActive: true,
-      isVerified: true,
+      // Removed isVerified filter - users can see all active profiles
     };
 
     // Gender preference filter

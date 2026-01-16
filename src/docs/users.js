@@ -22,6 +22,108 @@
 
 /**
  * @swagger
+ * /users/complete-profile:
+ *   post:
+ *     summary: Complete user profile (Onboarding)
+ *     description: |
+ *       Complete user profile after minimal registration.
+ *       
+ *       Use this endpoint when `needsOnboarding: true` is returned from `/auth/verify-otp`.
+ *       
+ *       This endpoint updates the temporary profile data with real user information.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - firstName
+ *               - lastName
+ *               - dateOfBirth
+ *               - gender
+ *               - interestedIn
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *                 example: John
+ *               lastName:
+ *                 type: string
+ *                 example: Doe
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: john@example.com
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *                 example: "1995-01-01"
+ *                 description: Must be 18+
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female, non-binary, other]
+ *                 example: male
+ *               interestedIn:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   enum: [male, female, non-binary, other, everyone]
+ *                 example: ["female"]
+ *               bio:
+ *                 type: string
+ *                 maxLength: 500
+ *                 example: Love hiking and coffee
+ *               occupation:
+ *                 type: string
+ *                 example: Software Engineer
+ *               education:
+ *                 type: string
+ *                 example: Bachelor's Degree
+ *               height:
+ *                 type: integer
+ *                 minimum: 100
+ *                 maximum: 250
+ *                 example: 180
+ *               interests:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["hiking", "coffee", "travel"]
+ *               location:
+ *                 type: object
+ *                 properties:
+ *                   city:
+ *                     type: string
+ *                   country:
+ *                     type: string
+ *     responses:
+ *       200:
+ *         description: Profile completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Profile completed successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       description: Complete user profile
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *
  * /users/profile:
  *   put:
  *     summary: Update user profile

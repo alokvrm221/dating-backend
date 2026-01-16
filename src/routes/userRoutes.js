@@ -18,6 +18,7 @@ router.use(protect);
 
 // Profile routes
 router.get('/:id', userIdValidator, validate, userController.getUserProfile);
+router.post('/complete-profile', userController.completeProfile); // No validator for now, will add later
 router.put('/profile', updateProfileValidator, validate, userController.updateProfile);
 router.put('/preferences', updatePreferencesValidator, validate, userController.updatePreferences);
 router.put('/privacy', updatePrivacyValidator, validate, userController.updatePrivacySettings);

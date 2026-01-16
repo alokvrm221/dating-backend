@@ -6,8 +6,8 @@ const { swipeLimiter } = require('../middlewares/rateLimiter');
 const validate = require('../middlewares/validation');
 const { swipeValidator } = require('../validators/swipeValidator');
 
-// All routes are protected and require verification
-router.use(protect, requireVerified);
+// All routes are protected (verification not required for basic swiping)
+router.use(protect);
 
 // Swipe routes
 router.get('/discover', swipeController.getDiscoverUsers);

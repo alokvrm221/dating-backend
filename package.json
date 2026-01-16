@@ -8,7 +8,8 @@
     "dev": "nodemon src/server.js",
     "test": "jest --coverage",
     "lint": "eslint src/**/*.js",
-    "lint:fix": "eslint src/**/*.js --fix"
+    "lint:fix": "eslint src/**/*.js --fix",
+    "seed:users": "node seedScripts/seedUsers.js"
   },
   "keywords": [
     "dating-app",

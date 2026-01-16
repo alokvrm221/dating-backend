@@ -8,6 +8,7 @@ const Match = require('./Match');
 const Message = require('./Message');
 const Report = require('./Report');
 const OTP = require('./OTP');
+const AppConfig = require('./AppConfig');
 
 module.exports = {
   User,
@@ -16,5 +17,6 @@ module.exports = {
   Message,
   Report,
   OTP,
+  AppConfig,
 };
 

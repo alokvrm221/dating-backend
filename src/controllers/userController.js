@@ -14,6 +14,17 @@ exports.getUserProfile = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Complete user profile (onboarding)
+ * @route   POST /api/v1/users/complete-profile
+ * @access  Private
+ */
+exports.completeProfile = asyncHandler(async (req, res) => {
+  const user = await UserService.completeProfile(req.user._id, req.body);
+
+  ApiResponse.success(res, 200, 'Profile completed successfully', { user });
+});
+
+/**
  * @desc    Update user profile
  * @route   PUT /api/v1/users/profile
  * @access  Private

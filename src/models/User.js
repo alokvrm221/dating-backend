@@ -25,6 +25,7 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
+      unique: true,
       lowercase: true,
       trim: true,
       sparse: true, // Allow null/undefined, but if present must be unique

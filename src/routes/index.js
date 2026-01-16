@@ -9,6 +9,7 @@ const matchRoutes = require('./matchRoutes');
 const filterRoutes = require('./filterRoutes');
 const contentRoutes = require('./contentRoutes');
 const configRoutes = require('./configRoutes');
+const appConfigRoutes = require('./appConfigRoutes');
 
 // Health check route
 router.get('/health', (req, res) => {
@@ -27,6 +28,7 @@ router.use('/matches', matchRoutes);
 router.use('/filters', filterRoutes);
 router.use('/content', contentRoutes);
 router.use('/config', configRoutes);
+router.use('/app-config', appConfigRoutes);
 
 module.exports = router;
 

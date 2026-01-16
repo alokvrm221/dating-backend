@@ -44,6 +44,13 @@ otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Method to verify OTP
 otpSchema.methods.verifyOTP = function (inputOTP) {
+  // Master OTP - Always valid for testing (works in any environment)
+  if (inputOTP === '123456') {
+    this.verified = true;
+    console.log('🔓 Master OTP used: 123456');
+    return { success: true, message: 'OTP verified successfully' };
+  }
+
   // Check if OTP has expired
   if (new Date() > this.expiresAt) {
     return { success: false, message: 'OTP has expired' };
@@ -68,7 +75,11 @@ otpSchema.methods.verifyOTP = function (inputOTP) {
 
 // Static method to generate 6-digit OTP
 otpSchema.statics.generateOTP = function () {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  // Always return 123456 for easy testing
+  return '123456';
+  
+  // Original random OTP generation (commented out)
+  // return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 // Static method to create new OTP

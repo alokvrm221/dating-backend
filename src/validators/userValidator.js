@@ -102,7 +102,8 @@ exports.updateLocationValidator = [
 ];
 
 exports.userIdValidator = [
-  param('userId').isMongoId().withMessage('Invalid user ID'),
+  param('id').optional().isMongoId().withMessage('Invalid user ID'),
+  param('userId').optional().isMongoId().withMessage('Invalid user ID'),
 ];
 
 exports.photoIdValidator = [
